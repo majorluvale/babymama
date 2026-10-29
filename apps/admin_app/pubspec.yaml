@@ -1,0 +1,25 @@
+name: babymama_admin
+description: Babymama back-office (Flutter web) - products, stock, orders, riders, carousel, bundles, support.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  babymama_core:
+    path: ../../packages/babymama_core
+  provider: ^6.1.2
+  image_picker: ^1.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

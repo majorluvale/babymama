@@ -1,0 +1,26 @@
+name: babymama_rider
+description: Babymama rider (livreur) app for Android and iOS.
+publish_to: none
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.9.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  babymama_core:
+    path: ../../packages/babymama_core
+  provider: ^6.1.2
+  geolocator: ^13.0.1
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

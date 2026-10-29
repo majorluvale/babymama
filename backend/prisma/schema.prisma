@@ -1,0 +1,464 @@
+// Babymama - data model
+// Prices are stored as integers in Kenyan Shillings (KES).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  SUPPORT
+  DRIVER
+}
+
+enum ProductCondition {
+  NEW_WITH_TAGS
+  NEW_WITHOUT_TAGS
+  VERY_GOOD
+  GOOD
+  SATISFACTORY
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  SOLD_OUT
+  ARCHIVED
+  REJECTED
+}
+
+enum ProductSource {
+  ADMIN
+  SELLER
+  WOOCOMMERCE
+}
+
+enum StockMovementType {
+  RESTOCK
+  SALE
+  RELEASE
+  ADJUSTMENT
+  RETURN
+  WOO_SYNC
+}
+
+enum BannerType {
+  PRODUCT
+  CATEGORY
+  BUNDLE
+  NEW_ARRIVALS
+  PROMO
+  EXTERNAL
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  MPESA
+  AIRTEL_MONEY
+  CARD
+  CASH_ON_DELIVERY
+}
+
+enum PaymentAttemptStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum DeliveryStatus {
+  UNASSIGNED
+  ASSIGNED
+  ACCEPTED
+  PICKED_UP
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+}
+
+enum VehicleType {
+  MOTORBIKE
+  BICYCLE
+  CAR
+  FOOT
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+model User {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  name           String
+  phone          String?
+  passwordHash   String?
+  googleId       String?          @unique
+  avatarUrl      String?
+  role           Role             @default(CUSTOMER)
+  locale         String           @default("en")
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  addresses      Address[]
+  orders         Order[]
+  favorites      Favorite[]
+  listings       Product[]        @relation("SellerProducts")
+  driverProfile  DriverProfile?
+  deliveries     Delivery[]
+  tickets        SupportTicket[]
+  messages       SupportMessage[]
+  reviews        Review[]
+  stockMovements StockMovement[]
+}
+
+model Address {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label         String       @default("Home")
+  recipientName String
+  phone         String
+  zoneId        String
+  zone          DeliveryZone @relation(fields: [zoneId], references: [id])
+  street        String
+  landmark      String?
+  lat           Float?
+  lng           Float?
+  isDefault     Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+}
+
+/// Nairobi delivery areas with a flat delivery fee.
+model DeliveryZone {
+  id         String          @id @default(cuid())
+  name       String          @unique
+  fee        Int
+  etaMinutes Int             @default(90)
+  active     Boolean         @default(true)
+  position   Int             @default(0)
+  addresses  Address[]
+  orders     Order[]
+  drivers    DriverProfile[]
+}
+
+/// Size scale used by the products of a category (see src/lib/sizes.ts).
+enum SizeType {
+  CLOTHING // XS, S, M, L...
+  KIDS_AGE // 0-3M ... 14Y
+  SHOES // EU 16 ... 46
+  ONE_SIZE // accessories: no size
+}
+
+model Category {
+  id       String     @id @default(cuid())
+  slug     String     @unique
+  nameEn   String
+  nameFr   String
+  imageUrl String?
+  position Int        @default(0)
+  /// Null = same scale as the parent category.
+  sizeType SizeType?
+  /// Icon key drawn by the apps (dress, tshirt, shoe...), see packages/babymama_core/lib/src/category_icons.dart.
+  icon     String?
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  wooId    Int?       @unique
+  products Product[]
+}
+
+model Product {
+  id                String            @id @default(cuid())
+  sku               String            @unique
+  title             String
+  description       String            @default("")
+  brand             String?
+  size              String?
+  color             String?
+  condition         ProductCondition  @default(GOOD)
+  price             Int
+  compareAtPrice    Int?
+  stock             Int               @default(0)
+  lowStockThreshold Int               @default(1)
+  status            ProductStatus     @default(ACTIVE)
+  isFeatured        Boolean           @default(false)
+  source            ProductSource     @default(ADMIN)
+  rejectReason      String?
+  wooId             Int?              @unique
+  categoryId        String?
+  category          Category?         @relation(fields: [categoryId], references: [id])
+  sellerId          String?
+  seller            User?             @relation("SellerProducts", fields: [sellerId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  images            ProductImage[]
+  movements         StockMovement[]
+  favorites         Favorite[]
+  bundleItems       BundleItem[]
+  orderItems        OrderItem[]
+
+  @@index([status, createdAt])
+  @@index([categoryId])
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  position  Int     @default(0)
+}
+
+/// Stock ledger: every change of Product.stock is recorded here.
+model StockMovement {
+  id         String            @id @default(cuid())
+  productId  String
+  product    Product           @relation(fields: [productId], references: [id])
+  type       StockMovementType
+  /// Signed quantity: negative when stock leaves, positive when it comes back.
+  quantity   Int
+  stockAfter Int
+  reason     String?
+  orderId    String?
+  order      Order?            @relation(fields: [orderId], references: [id])
+  userId     String?
+  user       User?             @relation(fields: [userId], references: [id])
+  createdAt  DateTime          @default(now())
+
+  @@index([productId, createdAt])
+  @@index([orderId])
+}
+
+model Favorite {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+}
+
+/// Bundle sale ("vente groupée" / lot): several products sold together at a bundle price.
+model Bundle {
+  id          String       @id @default(cuid())
+  title       String
+  titleFr     String?
+  description String       @default("")
+  price       Int
+  imageUrl    String?
+  active      Boolean      @default(true)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  items       BundleItem[]
+  orderItems  OrderItem[]
+}
+
+model BundleItem {
+  id        String  @id @default(cuid())
+  bundleId  String
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int     @default(1)
+
+  @@unique([bundleId, productId])
+}
+
+/// Multi-buy discount: buy at least `minItems` articles, get `percent` % off.
+model DiscountTier {
+  id       String  @id @default(cuid())
+  minItems Int     @unique
+  percent  Int
+  active   Boolean @default(true)
+}
+
+/// Home carousel slide (products, new arrivals, ads...).
+model Banner {
+  id         String     @id @default(cuid())
+  titleEn    String
+  titleFr    String
+  subtitleEn String?
+  subtitleFr String?
+  imageUrl   String
+  type       BannerType @default(PROMO)
+  targetId   String?
+  url        String?
+  position   Int        @default(0)
+  active     Boolean    @default(true)
+  startsAt   DateTime?
+  endsAt     DateTime?
+  createdAt  DateTime   @default(now())
+}
+
+model Order {
+  id              String          @id @default(cuid())
+  seq             Int             @unique @default(autoincrement())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id])
+  status          OrderStatus     @default(PENDING_PAYMENT)
+  paymentStatus   PaymentStatus   @default(UNPAID)
+  paymentMethod   PaymentMethod
+  subtotal        Int
+  discount        Int             @default(0)
+  discountPercent Int             @default(0)
+  deliveryFee     Int
+  total           Int
+  zoneId          String
+  zone            DeliveryZone    @relation(fields: [zoneId], references: [id])
+  /// Snapshot of the delivery address at checkout time.
+  address         Json
+  notes           String?
+  /// Code the customer gives to the rider to confirm delivery.
+  deliveryCode    String
+  expiresAt       DateTime?
+  cancelReason    String?
+  wooOrderId      Int?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  items           OrderItem[]
+  payments        Payment[]
+  delivery        Delivery?
+  review          Review?
+  tickets         SupportTicket[]
+  stockMovements  StockMovement[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  bundleId  String?
+  bundle    Bundle?  @relation(fields: [bundleId], references: [id])
+  sellerId  String?
+  title     String
+  imageUrl  String?
+  unitPrice Int
+  quantity  Int
+}
+
+model Payment {
+  id          String               @id @default(cuid())
+  orderId     String
+  order       Order                @relation(fields: [orderId], references: [id])
+  method      PaymentMethod
+  status      PaymentAttemptStatus @default(PENDING)
+  amount      Int
+  phone       String?
+  providerRef String?              @unique
+  receipt     String?
+  message     String?
+  redirectUrl String?
+  raw         Json?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+}
+
+model Delivery {
+  id             String         @id @default(cuid())
+  orderId        String         @unique
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driverId       String?
+  driver         User?          @relation(fields: [driverId], references: [id])
+  status         DeliveryStatus @default(UNASSIGNED)
+  assignedAt     DateTime?
+  acceptedAt     DateTime?
+  pickedUpAt     DateTime?
+  deliveredAt    DateTime?
+  failedReason   String?
+  cashCollected  Int?
+  lastLat        Float?
+  lastLng        Float?
+  lastLocationAt DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([driverId, status])
+}
+
+model DriverProfile {
+  id          String        @id @default(cuid())
+  userId      String        @unique
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicleType VehicleType   @default(MOTORBIKE)
+  plateNumber String?
+  isOnline    Boolean       @default(false)
+  zoneId      String?
+  zone        DeliveryZone? @relation(fields: [zoneId], references: [id])
+  lastLat     Float?
+  lastLng     Float?
+  lastSeenAt  DateTime?
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  rating       Int
+  comment      String?
+  driverRating Int?
+  createdAt    DateTime @default(now())
+}
+
+model SupportTicket {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  orderId   String?
+  order     Order?           @relation(fields: [orderId], references: [id])
+  subject   String
+  status    TicketStatus     @default(OPEN)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  messages  SupportMessage[]
+
+  @@index([status, updatedAt])
+}
+
+model SupportMessage {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User          @relation(fields: [senderId], references: [id])
+  body      String
+  isStaff   Boolean       @default(false)
+  createdAt DateTime      @default(now())
+}
