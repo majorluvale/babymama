@@ -1,23 +1,27 @@
 import { config } from '../../../config';
 import { AppError } from '../../../lib/errors';
+import { mpesaReady, type PaymentSettings } from '../settings';
 import { normalizeKenyanPhone, type PaymentOutcome, type PaymentProvider } from './provider';
 
 /** Safaricom Daraja - Lipa Na M-Pesa Online (STK Push). */
 
-const baseUrl = () =>
-  config.mpesa.env === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+type MpesaSettings = PaymentSettings['mpesa'];
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
+const baseUrl = (s: MpesaSettings) => (s.env === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke');
 
-async function accessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.value;
-  const basic = Buffer.from(`${config.mpesa.consumerKey}:${config.mpesa.consumerSecret}`).toString('base64');
-  const res = await fetch(`${baseUrl()}/oauth/v1/generate?grant_type=client_credentials`, {
+/** The token is cached for the keys it was issued for, so new keys saved in the admin are used at once. */
+let cachedToken: { value: string; expiresAt: number; keys: string } | null = null;
+
+export async function mpesaAccessToken(s: MpesaSettings): Promise<string> {
+  const keys = `${s.env}:${s.consumerKey}:${s.consumerSecret}`;
+  if (cachedToken && cachedToken.keys === keys && cachedToken.expiresAt > Date.now()) return cachedToken.value;
+  const basic = Buffer.from(`${s.consumerKey}:${s.consumerSecret}`).toString('base64');
+  const res = await fetch(`${baseUrl(s)}/oauth/v1/generate?grant_type=client_credentials`, {
     headers: { Authorization: `Basic ${basic}` },
   });
   if (!res.ok) throw new Error(`M-Pesa auth failed (${res.status})`);
   const data = (await res.json()) as { access_token: string; expires_in: string };
-  cachedToken = { value: data.access_token, expiresAt: Date.now() + (Number(data.expires_in) - 60) * 1000 };
+  cachedToken = { value: data.access_token, expiresAt: Date.now() + (Number(data.expires_in) - 60) * 1000, keys };
   return cachedToken.value;
 }
 
@@ -31,28 +35,28 @@ export function darajaTimestamp(date = new Date()): string {
 export const mpesaProvider: PaymentProvider = {
   method: 'MPESA',
   name: 'M-Pesa',
-  isConfigured: () =>
-    Boolean(config.mpesa.consumerKey && config.mpesa.consumerSecret && config.mpesa.shortcode && config.mpesa.passkey),
+  isReady: mpesaReady,
 
-  async initiate({ amount, phone, reference }) {
+  async initiate({ amount, phone, reference }, settings) {
+    const s = settings.mpesa;
     const msisdn = normalizeKenyanPhone(phone ?? '');
     if (!msisdn) throw new AppError(400, 'phone_required');
 
     const timestamp = darajaTimestamp();
-    const password = Buffer.from(`${config.mpesa.shortcode}${config.mpesa.passkey}${timestamp}`).toString('base64');
-    const res = await fetch(`${baseUrl()}/mpesa/stkpush/v1/processrequest`, {
+    const password = Buffer.from(`${s.shortcode}${s.passkey}${timestamp}`).toString('base64');
+    const res = await fetch(`${baseUrl(s)}/mpesa/stkpush/v1/processrequest`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${await accessToken()}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${await mpesaAccessToken(s)}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        BusinessShortCode: config.mpesa.shortcode,
+        BusinessShortCode: s.shortcode,
         Password: password,
         Timestamp: timestamp,
-        TransactionType: config.mpesa.transactionType,
+        TransactionType: s.transactionType,
         Amount: Math.ceil(amount),
         PartyA: msisdn,
-        PartyB: config.mpesa.partyB || config.mpesa.shortcode,
+        PartyB: s.partyB || s.shortcode,
         PhoneNumber: msisdn,
-        CallBackURL: `${config.publicUrl}/api/payments/callbacks/mpesa/${config.mpesa.callbackToken}`,
+        CallBackURL: `${config.publicUrl}/api/payments/callbacks/mpesa/${s.callbackToken}`,
         AccountReference: reference.slice(0, 12),
         TransactionDesc: 'Babymama',
       }),

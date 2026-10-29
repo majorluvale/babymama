@@ -1,44 +1,43 @@
-import { config } from '../../../config';
 import { AppError } from '../../../lib/errors';
+import { airtelReady, type PaymentSettings } from '../settings';
 import { normalizeKenyanPhone, type PaymentOutcome, type PaymentProvider } from './provider';
 
 /** Airtel Money Kenya - Airtel Africa Open API (USSD push collection). */
 
-const baseUrl = () =>
-  config.airtel.env === 'production' ? 'https://openapi.airtel.africa' : 'https://openapiuat.airtel.africa';
+type AirtelSettings = PaymentSettings['airtel'];
 
-let cachedToken: { value: string; expiresAt: number } | null = null;
+const baseUrl = (s: AirtelSettings) => (s.env === 'production' ? 'https://openapi.airtel.africa' : 'https://openapiuat.airtel.africa');
 
-async function accessToken(): Promise<string> {
-  if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.value;
-  const res = await fetch(`${baseUrl()}/auth/oauth2/token`, {
+/** The token is cached for the keys it was issued for, so new keys saved in the admin are used at once. */
+let cachedToken: { value: string; expiresAt: number; keys: string } | null = null;
+
+export async function airtelAccessToken(s: AirtelSettings): Promise<string> {
+  const keys = `${s.env}:${s.clientId}:${s.clientSecret}`;
+  if (cachedToken && cachedToken.keys === keys && cachedToken.expiresAt > Date.now()) return cachedToken.value;
+  const res = await fetch(`${baseUrl(s)}/auth/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: '*/*' },
-    body: JSON.stringify({
-      client_id: config.airtel.clientId,
-      client_secret: config.airtel.clientSecret,
-      grant_type: 'client_credentials',
-    }),
+    body: JSON.stringify({ client_id: s.clientId, client_secret: s.clientSecret, grant_type: 'client_credentials' }),
   });
   if (!res.ok) throw new Error(`Airtel auth failed (${res.status})`);
   const data = (await res.json()) as { access_token: string; expires_in: number | string };
-  cachedToken = { value: data.access_token, expiresAt: Date.now() + (Number(data.expires_in) - 60) * 1000 };
+  cachedToken = { value: data.access_token, expiresAt: Date.now() + (Number(data.expires_in) - 60) * 1000, keys };
   return cachedToken.value;
 }
 
 export const airtelProvider: PaymentProvider = {
   method: 'AIRTEL_MONEY',
   name: 'Airtel Money',
-  isConfigured: () => Boolean(config.airtel.clientId && config.airtel.clientSecret),
+  isReady: airtelReady,
 
-  async initiate({ amount, phone, reference, paymentId }) {
+  async initiate({ amount, phone, reference, paymentId }, settings) {
     const msisdn = normalizeKenyanPhone(phone ?? '');
     if (!msisdn) throw new AppError(400, 'phone_required');
 
-    const res = await fetch(`${baseUrl()}/merchant/v1/payments/`, {
+    const res = await fetch(`${baseUrl(settings.airtel)}/merchant/v1/payments/`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${await accessToken()}`,
+        Authorization: `Bearer ${await airtelAccessToken(settings.airtel)}`,
         'Content-Type': 'application/json',
         Accept: '*/*',
         'X-Country': 'KE',

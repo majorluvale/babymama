@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../widgets.dart';
+import 'payment_settings_page.dart';
 
 /// Delivery zones of Nairobi and the WooCommerce connection.
 class SettingsPage extends StatefulWidget {
@@ -76,6 +77,39 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          Text(context.tr('payment_methods'), style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          AsyncBuilder<Json>(
+            key: ValueKey('payments$_version'),
+            load: () async => await api.get('/admin/settings/payments') as Json,
+            builder: (context, s, _) {
+              String status(String group) {
+                final g = s[group] as Json;
+                if (g['ready'] == true) return context.tr('payment_status_live');
+                if (g['enabled'] != true) return context.tr('payment_status_off');
+                return s['mock'] == true ? context.tr('payment_status_simulated') : context.tr('payment_status_incomplete');
+              }
+
+              return Card(
+                elevation: 0,
+                color: BmColors.surface,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(16),
+                  leading: const Icon(Icons.payments_outlined, color: BmColors.primary, size: 32),
+                  title: Text('M-Pesa : ${status('mpesa')} · Airtel Money : ${status('airtel')} · ${context.tr('pay_CARD')} : ${status('flutterwave')}'),
+                  subtitle: Text(context.tr('payment_settings_summary')),
+                  trailing: FilledButton(
+                    onPressed: () async {
+                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentSettingsPage()));
+                      if (mounted) setState(() => _version++);
+                    },
+                    child: Text(context.tr('configure')),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
           Text('WooCommerce', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           AsyncBuilder<Json>(

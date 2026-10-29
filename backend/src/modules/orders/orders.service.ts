@@ -5,6 +5,7 @@ import { orderDto, orderInclude } from '../../lib/dto';
 import { AppError, notFound } from '../../lib/errors';
 import { prisma } from '../../lib/prisma';
 import { releaseOrderStock, takeStock } from '../stock/stock.service';
+import { getPaymentSettings } from '../payments/settings';
 import { pushStockToWoo } from '../woocommerce/woo.sync';
 import { computeTotals, type PriceLine } from './pricing';
 
@@ -130,7 +131,7 @@ export const generateDeliveryCode = () => crypto.randomInt(0, 10000).toString().
 export async function createOrder(userId: string, input: CheckoutInput) {
   const zone = await prisma.deliveryZone.findUnique({ where: { id: input.zoneId } });
   if (!zone?.active) throw new AppError(400, 'zone_unavailable');
-  if (input.paymentMethod === 'CASH_ON_DELIVERY' && !config.payments.cashOnDelivery) {
+  if (input.paymentMethod === 'CASH_ON_DELIVERY' && !(await getPaymentSettings()).cashOnDelivery) {
     throw new AppError(400, 'payment_method_unavailable');
   }
   const tiers = await activeTiers();

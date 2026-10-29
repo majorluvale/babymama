@@ -22,6 +22,8 @@ export const config = {
   publicUrl: (env.PUBLIC_URL ?? 'http://localhost:4000').replace(/\/$/, ''),
   corsOrigins: list(env.CORS_ORIGINS),
   jwtSecret: env.JWT_SECRET ?? 'dev-secret-change-me',
+  /** Encrypts the payment keys saved from the admin. Changing it means re-entering those keys. */
+  settingsSecret: env.SETTINGS_SECRET || env.JWT_SECRET || 'dev-secret-change-me',
   jwtExpiresInSeconds: Number(env.JWT_EXPIRES_IN_SECONDS ?? 60 * 60 * 24 * 30),
   uploadDir: path.resolve(env.UPLOAD_DIR ?? 'uploads'),
   orderPaymentTimeoutMinutes: Number(env.ORDER_PAYMENT_TIMEOUT_MINUTES ?? 15),

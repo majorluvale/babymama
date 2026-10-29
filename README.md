@@ -121,6 +121,8 @@ flutter build ipa --release --dart-define=API_URL=https://api.babymama.co.ke   #
 
 ## 4. Paiements mobiles
 
+**Le plus simple : Admin > Paramètres > Moyens de paiement.** On y active M-Pesa, Airtel Money, la carte et le paiement à la livraison, on saisit les clés (Sandbox puis Production), on teste la connexion et on récupère les URL de callback. Les clés sont enregistrées en base, les secrets chiffrés (AES-256-GCM, clé `SETTINGS_SECRET`, à défaut `JWT_SECRET`) et jamais réaffichés. Aucun redéploiement : chaque instance relit les réglages au plus tard 30 s après l'enregistrement. Les variables d'environnement ci-dessous restent des valeurs par défaut.
+
 Le backend expose `GET /api/payments/methods` (moyens actifs) et `POST /api/payments/orders/:orderId` (démarre le paiement). L'app interroge ensuite `GET /api/payments/:id` jusqu'à confirmation.
 
 | Moyen | Variables | URL de callback à déclarer |

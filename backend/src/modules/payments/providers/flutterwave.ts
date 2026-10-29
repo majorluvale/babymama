@@ -1,25 +1,26 @@
-import { config } from '../../../config';
+import { flutterwaveReady, type PaymentSettings } from '../settings';
 import type { PaymentOutcome, PaymentProvider } from './provider';
 
 /** Flutterwave Standard (hosted checkout): cards, and M-Pesa as a fallback. */
 
 const API = 'https://api.flutterwave.com/v3';
-const headers = () => ({ Authorization: `Bearer ${config.flutterwave.secretKey}`, 'Content-Type': 'application/json' });
+const headers = (secretKey: string) => ({ Authorization: `Bearer ${secretKey}`, 'Content-Type': 'application/json' });
 
 export const flutterwaveProvider: PaymentProvider = {
   method: 'CARD',
   name: 'Card (Flutterwave)',
-  isConfigured: () => Boolean(config.flutterwave.secretKey),
+  isReady: flutterwaveReady,
 
-  async initiate({ paymentId, amount, email, phone, name, reference }) {
+  async initiate({ paymentId, amount, email, phone, name, reference }, settings) {
+    const s = settings.flutterwave;
     const res = await fetch(`${API}/payments`, {
       method: 'POST',
-      headers: headers(),
+      headers: headers(s.secretKey),
       body: JSON.stringify({
         tx_ref: paymentId,
         amount,
         currency: 'KES',
-        redirect_url: config.flutterwave.redirectUrl,
+        redirect_url: s.redirectUrl,
         payment_options: 'card,mpesa',
         customer: { email, phonenumber: phone, name },
         customizations: { title: 'Babymama', description: `Order ${reference}` },
@@ -33,11 +34,18 @@ export const flutterwaveProvider: PaymentProvider = {
   },
 };
 
+/** Checks a secret key with a read-only call (KES balance). */
+export async function checkFlutterwaveKey(secretKey: string): Promise<boolean> {
+  const res = await fetch(`${API}/balances/KES`, { headers: headers(secretKey) });
+  return res.ok;
+}
+
 /** Never trust the webhook body alone: re-fetch the transaction from Flutterwave. */
 export async function verifyFlutterwaveTransaction(
   transactionId: string | number,
+  secretKey: string,
 ): Promise<(PaymentOutcome & { providerRef: string }) | null> {
-  const res = await fetch(`${API}/transactions/${transactionId}/verify`, { headers: headers() });
+  const res = await fetch(`${API}/transactions/${transactionId}/verify`, { headers: headers(secretKey) });
   if (!res.ok) return null;
   const body = (await res.json()) as {
     data?: { status: string; tx_ref: string; amount: number; currency: string; flw_ref?: string };

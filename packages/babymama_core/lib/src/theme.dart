@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 class BmColors {
@@ -58,5 +59,29 @@ ThemeData bmTheme() {
       ),
     ),
     chipTheme: ChipThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+    // Websites switch pages with a short fade; the Android zoom / iOS slide look odd in a browser.
+    pageTransitionsTheme: kIsWeb
+        ? PageTransitionsTheme(builders: {
+            for (final platform in TargetPlatform.values) platform: const _QuickFadeTransitionsBuilder(),
+          })
+        : const PageTransitionsTheme(),
   );
+}
+
+class _QuickFadeTransitionsBuilder extends PageTransitionsBuilder {
+  const _QuickFadeTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 150);
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return FadeTransition(opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut), child: child);
+  }
 }

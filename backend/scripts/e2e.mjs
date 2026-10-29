@@ -151,7 +151,9 @@ async function main() {
   const pay2 = await call('POST', `/payments/orders/${order2.data.id}`, { token: customer, body: { phone: '0712345678' } });
   const badCallback = await call('POST', '/payments/callbacks/mpesa/wrong-token', { body: {} });
   check('callback with wrong token -> 403', badCallback.status === 403, badCallback);
-  const cb = await call('POST', `/payments/callbacks/mpesa/${process.env.MPESA_CALLBACK_TOKEN ?? 'change-me-mpesa-callback'}`, {
+  // The callback URL (with its secret token) is shown in Admin > Payment methods.
+  const mpesaCallbackPath = new URL((await call('GET', '/admin/settings/payments', { token: admin })).data.mpesa.callbackUrl).pathname.replace('/api', '');
+  const cb = await call('POST', mpesaCallbackPath, {
     body: { Body: { stkCallback: { MerchantRequestID: 'x', CheckoutRequestID: pay2.data.providerRef, ResultCode: 1032, ResultDesc: 'Request cancelled by user' } } },
   });
   check('callback acknowledged', cb.status === 200 && cb.data.ResultCode === 0, cb);
@@ -314,6 +316,34 @@ async function main() {
   check('stock summary', summary.data.totalUnits > 0 && summary.data.stockValue > 0, summary.data);
   const low = await call('GET', '/admin/products?lowStock=true', { token: admin });
   check('low stock list', low.data.items.every((p) => p.stock <= p.lowStockThreshold), low.data.items.map((p) => [p.stock, p.lowStockThreshold]));
+
+  // ---------- Payment settings (admin, no redeploy) ----------
+  const settingsPath = '/admin/settings/payments';
+  check('customer cannot read payment settings', (await call('GET', settingsPath, { token: customer })).status === 403);
+  const savedKeys = await call('PUT', settingsPath, {
+    token: admin,
+    body: { mpesa: { enabled: true, consumerKey: 'e2e-key', consumerSecret: 'e2e-very-secret', shortcode: '174379', passkey: 'e2e-passkey' } },
+  });
+  const storedRow = await prisma.setting.findUnique({ where: { key: 'payments' } });
+  check(
+    'M-Pesa keys saved, secrets hidden and encrypted',
+    savedKeys.status === 200 &&
+      savedKeys.data.mpesa.ready &&
+      savedKeys.data.mpesa.consumerSecretSet &&
+      !JSON.stringify(savedKeys.data).includes('e2e-very-secret') &&
+      !storedRow.value.includes('e2e-very-secret'),
+    savedKeys.data,
+  );
+  const realMpesa = (await call('GET', '/payments/methods')).data.find((m) => m.method === 'MPESA');
+  check('configured M-Pesa is no longer simulated', realMpesa && !realMpesa.simulated, realMpesa);
+  await call('PUT', settingsPath, { token: admin, body: { cashOnDelivery: false, mpesa: { consumerKey: '', consumerSecret: '', shortcode: '', passkey: '' } } });
+  const methodsNoCod = (await call('GET', '/payments/methods')).data;
+  check(
+    'cash on delivery switched off from the admin',
+    !methodsNoCod.some((m) => m.method === 'CASH_ON_DELIVERY') && methodsNoCod.find((m) => m.method === 'MPESA')?.simulated,
+    methodsNoCod,
+  );
+  await call('PUT', settingsPath, { token: admin, body: { cashOnDelivery: true } });
 
   // ---------- Categories (admin) ----------
   const newCat = await call('POST', '/admin/categories', {

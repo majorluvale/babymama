@@ -1,6 +1,6 @@
 import type { PaymentMethod } from '@prisma/client';
-import { config } from '../../../config';
 import { AppError } from '../../../lib/errors';
+import { getPaymentSettings, type PaymentSettings } from '../settings';
 import { airtelProvider } from './airtel';
 import { flutterwaveProvider } from './flutterwave';
 import { mpesaProvider } from './mpesa';
@@ -8,12 +8,12 @@ import type { PaymentProvider } from './provider';
 
 const providers: PaymentProvider[] = [mpesaProvider, airtelProvider, flutterwaveProvider];
 
-/** Development provider: accepts every payment a few seconds after it starts. */
+/** Simulated payments: accepted a few seconds after they start. */
 export function mockProvider(method: PaymentMethod): PaymentProvider {
   return {
     method,
     name: `${method} (simulation)`,
-    isConfigured: () => true,
+    isReady: () => true,
     async initiate({ paymentId }) {
       return { status: 'PENDING', providerRef: `MOCK-${paymentId}`, message: 'Simulated payment - it will succeed in a few seconds.' };
     },
@@ -22,20 +22,23 @@ export function mockProvider(method: PaymentMethod): PaymentProvider {
 
 export const isMock = (p: PaymentProvider) => p.name.endsWith('(simulation)');
 
-export function getProvider(method: PaymentMethod): PaymentProvider {
+/** The provider for a method with the current settings (real when it is set up, otherwise simulated in test mode). */
+export async function getProvider(method: PaymentMethod): Promise<{ provider: PaymentProvider; settings: PaymentSettings }> {
+  const settings = await getPaymentSettings();
   const real = providers.find((p) => p.method === method);
-  if (real?.isConfigured()) return real;
-  if (config.payments.mock && method !== 'CASH_ON_DELIVERY') return mockProvider(method);
+  if (real?.isReady(settings)) return { provider: real, settings };
+  if (settings.mock && method !== 'CASH_ON_DELIVERY') return { provider: mockProvider(method), settings };
   throw new AppError(400, 'payment_method_unavailable');
 }
 
-export function enabledMethods() {
+export async function enabledMethods() {
+  const settings = await getPaymentSettings();
   const methods: { method: PaymentMethod; name: string; simulated: boolean }[] = [];
   for (const method of ['MPESA', 'AIRTEL_MONEY', 'CARD'] as const) {
     const real = providers.find((p) => p.method === method);
-    if (real?.isConfigured()) methods.push({ method, name: real.name, simulated: false });
-    else if (config.payments.mock) methods.push({ method, name: real?.name ?? method, simulated: true });
+    if (real?.isReady(settings)) methods.push({ method, name: real.name, simulated: false });
+    else if (settings.mock) methods.push({ method, name: real?.name ?? method, simulated: true });
   }
-  if (config.payments.cashOnDelivery) methods.push({ method: 'CASH_ON_DELIVERY', name: 'Cash on delivery', simulated: false });
+  if (settings.cashOnDelivery) methods.push({ method: 'CASH_ON_DELIVERY', name: 'Cash on delivery', simulated: false });
   return methods;
 }

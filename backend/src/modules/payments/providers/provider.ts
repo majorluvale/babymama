@@ -1,4 +1,5 @@
 import type { PaymentMethod } from '@prisma/client';
+import type { PaymentSettings } from '../settings';
 
 export interface InitiateInput {
   paymentId: string;
@@ -35,8 +36,9 @@ export interface PaymentOutcome {
 export interface PaymentProvider {
   method: PaymentMethod;
   name: string;
-  isConfigured(): boolean;
-  initiate(input: InitiateInput): Promise<InitiateResult>;
+  /** Enabled in the admin and all its keys are filled in. */
+  isReady(settings: PaymentSettings): boolean;
+  initiate(input: InitiateInput, settings: PaymentSettings): Promise<InitiateResult>;
 }
 
 /** Normalizes Kenyan numbers to 2547XXXXXXXX / 2541XXXXXXXX. Returns null if invalid. */

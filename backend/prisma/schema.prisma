@@ -452,6 +452,15 @@ model SupportTicket {
   @@index([status, updatedAt])
 }
 
+/// Settings the admin changes at runtime without redeploying (payment gateways...).
+/// `value` is JSON; secret fields inside it are encrypted (src/lib/secrets.ts).
+model Setting {
+  key       String   @id
+  value     String
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
 model SupportMessage {
   id        String        @id @default(cuid())
   ticketId  String

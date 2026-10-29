@@ -15,7 +15,7 @@ export async function initiatePayment(userId: string, orderId: string, input: { 
 
   const method = input.method ?? order.paymentMethod;
   if (method === 'CASH_ON_DELIVERY') throw new AppError(400, 'payment_method_unavailable');
-  const provider = getProvider(method);
+  const { provider, settings } = await getProvider(method);
   const phone = input.phone ?? order.user.phone ?? undefined;
 
   const payment = await prisma.payment.create({ data: { orderId, method, amount: order.total, phone } });
@@ -39,7 +39,7 @@ export async function initiatePayment(userId: string, orderId: string, input: { 
       phone,
       email: order.user.email,
       name: order.user.name,
-    });
+    }, settings);
   } catch (e) {
     await prisma.payment.update({ where: { id: payment.id }, data: { status: 'FAILED', message: (e as Error).message } });
     await prisma.order.update({ where: { id: orderId }, data: { paymentStatus: 'FAILED' } });
@@ -125,5 +125,12 @@ export async function settlePayment(where: { paymentId?: string; providerRef?: s
 export async function getPaymentForUser(paymentId: string, user: { id: string; role: string }) {
   const payment = await prisma.payment.findUnique({ where: { id: paymentId }, include: { order: { select: { userId: true } } } });
   if (!payment || (payment.order.userId !== user.id && user.role !== 'ADMIN')) throw notFound();
+  // Serverless functions stop after responding, so the timer that settles simulated payments may never fire:
+  // settle them here, when the app polls.
+  if (payment.status === 'PENDING' && payment.providerRef?.startsWith('MOCK-') && Date.now() - payment.createdAt.getTime() > 4000) {
+    await settlePayment({ paymentId: payment.id }, { success: true, receipt: `SIM${Date.now().toString(36).toUpperCase()}` });
+    const settled = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    return paymentDto(settled);
+  }
   return paymentDto(payment);
 }

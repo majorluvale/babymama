@@ -8,6 +8,7 @@ import { contentAdminRouter } from './content.admin';
 import { ordersAdminRouter } from './orders.admin';
 import { peopleAdminRouter } from './people.admin';
 import { productsAdminRouter } from './products.admin';
+import { settingsAdminRouter } from './settings.admin';
 
 export const adminRouter = Router();
 
@@ -72,4 +73,5 @@ adminRouter.use(productsAdminRouter);
 adminRouter.use(ordersAdminRouter);
 adminRouter.use(contentAdminRouter);
 adminRouter.use(peopleAdminRouter);
+adminRouter.use(settingsAdminRouter);
 adminRouter.use('/woocommerce', wooAdminRouter);

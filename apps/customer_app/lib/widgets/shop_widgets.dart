@@ -23,16 +23,30 @@ Future<bool> ensureLoggedIn(BuildContext context) async {
   return ok == true;
 }
 
-void openProduct(BuildContext context, String id) =>
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProductScreen(productId: id)));
+void openProduct(BuildContext context, String id) {
+  ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+  Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProductScreen(productId: id)));
+}
 
 void openBundle(BuildContext context, String id) =>
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => BundleScreen(bundleId: id)));
 
-void openCatalog(BuildContext context, {String? categoryId, String? query, String sort = 'newest', String? title}) =>
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => CatalogScreen(categoryId: categoryId, initialQuery: query, initialSort: sort, title: title),
-    ));
+const _catalogRoute = 'catalog';
+
+/// From a catalog page (e.g. Women, then Men in the header) the new listing replaces the current one
+/// instead of piling up pages.
+void openCatalog(BuildContext context, {String? categoryId, String? query, String sort = 'newest', String? title}) {
+  final route = MaterialPageRoute<void>(
+    settings: const RouteSettings(name: _catalogRoute),
+    builder: (_) => CatalogScreen(categoryId: categoryId, initialQuery: query, initialSort: sort, title: title),
+  );
+  final navigator = Navigator.of(context);
+  if (ModalRoute.of(context)?.settings.name == _catalogRoute) {
+    navigator.pushReplacement(route);
+  } else {
+    navigator.push(route);
+  }
+}
 
 void openCart(BuildContext context) => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CartScreen()));
 
@@ -68,11 +82,18 @@ Future<void> toggleFavorite(BuildContext context, String productId) async {
 
 void addProductToCart(BuildContext context, Product p) {
   final added = context.read<CartController>().addProduct(p);
+  final wide = MediaQuery.sizeOf(context).width >= kWideBreakpoint;
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(
       content: Text(added ? context.tr('added_to_cart') : context.tr('max_stock_reached')),
       action: SnackBarAction(label: context.tr('view_cart'), onPressed: () => openCart(context)),
+      // With an action Flutter keeps the bar until closed; it must go away by itself and not cover the buy buttons.
+      persist: false,
+      duration: const Duration(seconds: 3),
+      behavior: SnackBarBehavior.floating,
+      width: wide ? 420 : null,
+      margin: wide ? null : const EdgeInsets.fromLTRB(16, 0, 16, 76),
     ));
 }
 
