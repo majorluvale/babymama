@@ -1,0 +1,3 @@
+# The Babymama API is not meant to be indexed.
+User-agent: *
+Disallow: /

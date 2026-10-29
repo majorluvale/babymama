@@ -182,6 +182,8 @@ Les erreurs de l'API sont traduites selon l'en-tête `Accept-Language` (envoyé 
 
 ## 9. Hébergement sur Vercel
 
+Version de test en ligne : boutique https://babymama-shop.vercel.app, admin https://babymama-admin.vercel.app, API https://babymama-api.vercel.app.
+
 Trois projets Vercel, tous sur le plan gratuit Hobby (usage de test, non commercial) :
 
 | Projet | Dossier | Contenu |
@@ -194,10 +196,6 @@ Variables de l'API sur Vercel : `DATABASE_URL` (Neon Postgres, ajouté par l'int
 
 Différences avec un serveur classique : pas de minuteur en continu, donc les commandes non payées sont libérées au fil des requêtes (une fois par minute au plus) ; pas de disque, donc les photos vont sur Vercel Blob.
 
-Remplir la base la première fois, depuis votre poste, avec l'URL Neon :
+Remplir la base la première fois : ajoutez à l'API les variables `SEED_ADMIN_PASSWORD`, `SEED_DEMO_PASSWORD` (mots de passe forts) et `SEED_ON_DEPLOY=true`, redéployez (`vercel deploy --prod` dans `backend/`), puis retirez `SEED_ON_DEPLOY`. Les mots de passe ne sont jamais écrits dans les journaux de build.
 
-```bash
-cd backend
-DATABASE_URL="<url neon>" SEED_ADMIN_PASSWORD="<mot de passe fort>" SEED_DEMO_PASSWORD="<autre mot de passe>" npx prisma migrate deploy
-DATABASE_URL="<url neon>" SEED_ADMIN_PASSWORD="<mot de passe fort>" SEED_DEMO_PASSWORD="<autre mot de passe>" npm run db:seed
-```
+Les sites Flutter se déploient compilés : `flutter build web --release --dart-define=API_URL=https://babymama-api.vercel.app -o <dossier>` puis `vercel deploy --prod` dans ce dossier.

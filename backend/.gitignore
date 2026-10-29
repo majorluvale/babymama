@@ -4,4 +4,4 @@ uploads/
 .env
 
 .vercel
-.env*
+.env*.local

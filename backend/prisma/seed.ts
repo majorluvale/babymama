@@ -239,11 +239,13 @@ async function main() {
     }
   }
 
+  // Passwords given through the environment (deployments) never end up in build logs.
+  const shown = (localDefault: string, envName: string) => (process.env[envName] ? `(${envName})` : localDefault);
   console.log('Seed done.');
-  console.log(`  Admin:    ${adminEmail} / ${adminPassword}`);
-  console.log(`  Support:  support@babymama.co.ke / ${demoPassword('Support123!')}`);
-  console.log(`  Rider:    rider@babymama.co.ke / ${demoPassword('Rider123!')}`);
-  console.log(`  Customer: customer@babymama.co.ke / ${demoPassword('Customer123!')}`);
+  console.log(`  Admin:    ${adminEmail} / ${shown(adminPassword, 'SEED_ADMIN_PASSWORD')}`);
+  console.log(`  Support:  support@babymama.co.ke / ${shown('Support123!', 'SEED_DEMO_PASSWORD')}`);
+  console.log(`  Rider:    rider@babymama.co.ke / ${shown('Rider123!', 'SEED_DEMO_PASSWORD')}`);
+  console.log(`  Customer: customer@babymama.co.ke / ${shown('Customer123!', 'SEED_DEMO_PASSWORD')}`);
 }
 
 main()
