@@ -238,7 +238,7 @@ const Map<String, String> stringsEn = {
   'product_status_REJECTED': 'Rejected',
 
   // ---- Profile ----
-  'profile_guest': 'Sign in to follow your orders, save favourites and sell your clothes.',
+  'profile_guest': 'Sign in to follow your orders and save your favourites.',
   'edit_profile': 'Edit profile',
   'delivery_info': 'Delivery across Nairobi',
   'delivery_info_sub': 'Same-day delivery by our riders. Pay with M-Pesa, Airtel Money, card or cash.',

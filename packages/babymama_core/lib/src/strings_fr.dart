@@ -238,7 +238,7 @@ const Map<String, String> stringsFr = {
   'product_status_REJECTED': 'Refusé',
 
   // ---- Profil ----
-  'profile_guest': 'Connectez-vous pour suivre vos commandes, enregistrer vos favoris et vendre vos vêtements.',
+  'profile_guest': 'Connectez-vous pour suivre vos commandes et enregistrer vos favoris.',
   'edit_profile': 'Modifier le profil',
   'delivery_info': 'Livraison dans tout Nairobi',
   'delivery_info_sub': 'Livraison le jour même par nos livreurs. Payez par M-Pesa, Airtel Money, carte ou en espèces.',
