@@ -7,6 +7,7 @@ import { AppError, notFound } from '../../lib/errors';
 import { ah } from '../../lib/http';
 import { prisma } from '../../lib/prisma';
 import { requireAuth } from '../../middleware/auth';
+import { phoneSignInAvailable, requestPhoneOtp, verifyPhoneOtp } from './auth.phone';
 import { authResponse, loginWithGoogle, verifyGoogle } from './auth.service';
 
 export const authRouter = Router();
@@ -74,6 +75,44 @@ authRouter.post(
     const body = googleSchema.parse(req.body);
     const identity = await verifyGoogle(body);
     const user = await loginWithGoogle(identity, body.locale);
+    res.json(authResponse(user));
+  }),
+);
+
+// ---- Sign in by phone number (SMS one-time code) ----
+
+authRouter.get(
+  '/phone/available',
+  ah(async (_req, res) => {
+    res.json({ available: await phoneSignInAvailable() });
+  }),
+);
+
+const phoneRequestSchema = z.object({ phone: z.string().trim().min(9).max(20), locale: locale.optional() });
+
+authRouter.post(
+  '/phone/request',
+  limiter,
+  ah(async (req, res) => {
+    const body = phoneRequestSchema.parse(req.body);
+    const result = await requestPhoneOtp(body.phone, body.locale ?? 'en');
+    res.json({ sent: true, ...result });
+  }),
+);
+
+const phoneVerifySchema = z.object({
+  phone: z.string().trim().min(9).max(20),
+  code: z.string().trim().regex(/^\d{6}$/),
+  name: z.string().trim().max(80).optional(),
+  locale: locale.optional(),
+});
+
+authRouter.post(
+  '/phone/verify',
+  limiter,
+  ah(async (req, res) => {
+    const body = phoneVerifySchema.parse(req.body);
+    const user = await verifyPhoneOtp(body.phone, body.code, body.name, body.locale);
     res.json(authResponse(user));
   }),
 );

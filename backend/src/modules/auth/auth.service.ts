@@ -29,19 +29,22 @@ interface GoogleIdentity {
  */
 export async function verifyGoogle(input: { idToken?: string | null; accessToken?: string | null }): Promise<GoogleIdentity> {
   const audiences = config.google.clientIds;
+  // Fail closed: without the allowed client IDs we cannot check which app the token was minted for,
+  // so a token issued for any other Google app would be accepted. Refuse instead of trusting it.
+  if (!audiences.length) {
+    console.error('[google] GOOGLE_CLIENT_IDS is not set; refusing Google sign-in');
+    throw new AppError(503, 'google_not_configured');
+  }
   try {
     if (input.idToken) {
-      const ticket = await googleClient.verifyIdToken({
-        idToken: input.idToken,
-        audience: audiences.length ? audiences : undefined,
-      });
+      const ticket = await googleClient.verifyIdToken({ idToken: input.idToken, audience: audiences });
       const p = ticket.getPayload();
       if (!p?.email || !p.email_verified) throw new Error('email not verified');
       return { googleId: p.sub, email: p.email.toLowerCase(), name: p.name ?? p.email, picture: p.picture };
     }
     if (input.accessToken) {
       const info = await googleClient.getTokenInfo(input.accessToken);
-      if (audiences.length && (!info.aud || !audiences.includes(info.aud))) throw new Error('bad audience');
+      if (!info.aud || !audiences.includes(info.aud)) throw new Error('bad audience');
       const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${input.accessToken}` },
       });

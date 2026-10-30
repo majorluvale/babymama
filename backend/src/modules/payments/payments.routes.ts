@@ -1,7 +1,15 @@
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { PaymentMethod } from '@prisma/client';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors';
+
+/** Constant-time comparison of two secrets, safe against timing attacks. */
+function secretEquals(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
 import { ah } from '../../lib/http';
 import { requireAuth } from '../../middleware/auth';
 import { getPaymentForUser, initiatePayment, settlePayment } from './payments.service';
@@ -49,7 +57,7 @@ paymentsRouter.get(
 paymentsRouter.post(
   '/callbacks/mpesa/:token',
   ah(async (req, res) => {
-    if (req.params.token !== (await getPaymentSettings()).mpesa.callbackToken) throw new AppError(403, 'forbidden');
+    if (!secretEquals(req.params.token, (await getPaymentSettings()).mpesa.callbackToken)) throw new AppError(403, 'forbidden');
     const outcome = parseMpesaCallback(req.body);
     if (outcome) await settlePayment({ providerRef: outcome.providerRef }, outcome);
     res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
@@ -59,7 +67,7 @@ paymentsRouter.post(
 paymentsRouter.post(
   '/callbacks/airtel/:token',
   ah(async (req, res) => {
-    if (req.params.token !== (await getPaymentSettings()).airtel.callbackToken) throw new AppError(403, 'forbidden');
+    if (!secretEquals(req.params.token, (await getPaymentSettings()).airtel.callbackToken)) throw new AppError(403, 'forbidden');
     const outcome = parseAirtelCallback(req.body);
     if (outcome) await settlePayment({ providerRef: outcome.providerRef }, outcome);
     res.json({ ok: true });
@@ -70,7 +78,8 @@ paymentsRouter.post(
   '/callbacks/flutterwave',
   ah(async (req, res) => {
     const { flutterwave } = await getPaymentSettings();
-    if (!flutterwave.webhookHash || req.header('verif-hash') !== flutterwave.webhookHash) {
+    const hash = req.header('verif-hash');
+    if (!flutterwave.webhookHash || !hash || !secretEquals(hash, flutterwave.webhookHash)) {
       throw new AppError(401, 'invalid_signature');
     }
     const id = (req.body as { data?: { id?: number } })?.data?.id;

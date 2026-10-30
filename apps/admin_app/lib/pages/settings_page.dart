@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../widgets.dart';
 import 'payment_settings_page.dart';
+import 'sms_settings_page.dart';
 
 /// Delivery zones of Nairobi and the WooCommerce connection.
 class SettingsPage extends StatefulWidget {
@@ -101,6 +102,37 @@ class _SettingsPageState extends State<SettingsPage> {
                   trailing: FilledButton(
                     onPressed: () async {
                       await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PaymentSettingsPage()));
+                      if (mounted) setState(() => _version++);
+                    },
+                    child: Text(context.tr('configure')),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          Text(context.tr('sms_settings'), style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          AsyncBuilder<Json>(
+            key: ValueKey('sms$_version'),
+            load: () async => await api.get('/admin/settings/sms') as Json,
+            builder: (context, s, _) {
+              final status = s['ready'] != true
+                  ? context.tr('sms_status_off')
+                  : s['mock'] == true
+                      ? context.tr('sms_status_simulated')
+                      : context.tr('sms_status_live');
+              return Card(
+                elevation: 0,
+                color: BmColors.surface,
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(16),
+                  leading: const Icon(Icons.sms_outlined, color: BmColors.primary, size: 32),
+                  title: Text('${context.tr('sms_provider_at')} : $status'),
+                  subtitle: Text(context.tr('sms_settings_summary')),
+                  trailing: FilledButton(
+                    onPressed: () async {
+                      await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SmsSettingsPage()));
                       if (mounted) setState(() => _version++);
                     },
                     child: Text(context.tr('configure')),

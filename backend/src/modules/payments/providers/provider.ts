@@ -1,5 +1,8 @@
 import type { PaymentMethod } from '@prisma/client';
+import { normalizeKenyanPhone } from '../../../lib/phone';
 import type { PaymentSettings } from '../settings';
+
+export { normalizeKenyanPhone };
 
 export interface InitiateInput {
   paymentId: string;
@@ -39,13 +42,4 @@ export interface PaymentProvider {
   /** Enabled in the admin and all its keys are filled in. */
   isReady(settings: PaymentSettings): boolean;
   initiate(input: InitiateInput, settings: PaymentSettings): Promise<InitiateResult>;
-}
-
-/** Normalizes Kenyan numbers to 2547XXXXXXXX / 2541XXXXXXXX. Returns null if invalid. */
-export function normalizeKenyanPhone(input: string): string | null {
-  const digits = input.replace(/\D/g, '');
-  if (/^254[17]\d{8}$/.test(digits)) return digits;
-  if (/^0[17]\d{8}$/.test(digits)) return `254${digits.slice(1)}`;
-  if (/^[17]\d{8}$/.test(digits)) return `254${digits}`;
-  return null;
 }

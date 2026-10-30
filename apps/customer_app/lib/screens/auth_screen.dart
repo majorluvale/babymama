@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../state/google_auth.dart';
 import '../widgets/site_layout.dart';
+import 'phone_auth_screen.dart';
 
 /// Sign in / create an account, with e-mail or Google. Pops `true` once signed in.
 class AuthScreen extends StatefulWidget {
@@ -22,6 +23,15 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _register = false;
   bool _busy = false;
   bool _obscure = true;
+  bool _phoneAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<Session>().phoneSignInAvailable().then((v) {
+      if (mounted && v) setState(() => _phoneAvailable = true);
+    });
+  }
 
   @override
   void dispose() {
@@ -71,6 +81,11 @@ class _AuthScreenState extends State<AuthScreen> {
     _run(() => signInWithGoogle(session, lang));
   }
 
+  Future<void> _openPhone() async {
+    final ok = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => const PhoneAuthScreen()));
+    if (ok == true && mounted) Navigator.of(context).pop(true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return SiteScaffold(
@@ -96,6 +111,14 @@ class _AuthScreenState extends State<AuthScreen> {
                     icon: const Text('G', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF4285F4))),
                     label: Text(context.tr('continue_google')),
                   ),
+                  if (_phoneAvailable) ...[
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _openPhone,
+                      icon: const Icon(Icons.sms_outlined, size: 20),
+                      label: Text(context.tr('continue_phone')),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   Row(children: [
                     const Expanded(child: Divider()),

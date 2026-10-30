@@ -386,17 +386,12 @@ async function main() {
   const archived = await call('GET', `/products/${created.data.id}`);
   check('archived product hidden from shop', archived.status === 404, archived);
 
-  // ---------- "Sell now" listing + moderation ----------
+  // ---------- Single seller: customer self-listing is not exposed ----------
   const listing = await call('POST', '/me/listings', {
     token: customer,
     body: { title: 'My denim skirt', condition: 'GOOD', price: 600, images: ['https://picsum.photos/seed/e2e2/600/800'] },
   });
-  check('customer submits listing', listing.status === 201 && listing.data.status === 'PENDING_REVIEW', listing);
-  const hidden = await call('GET', `/products/${listing.data.id}`);
-  check('pending listing hidden from public', hidden.status === 404, hidden);
-  const approve = await call('PATCH', `/admin/products/${listing.data.id}`, { token: admin, body: { status: 'ACTIVE' } });
-  const visible = await call('GET', `/products/${listing.data.id}`);
-  check('approved listing visible', approve.data.status === 'ACTIVE' && visible.status === 200 && visible.data.seller.name === 'Wanjiru Kamau', visible.data);
+  check('customer listing endpoint removed -> 404', listing.status === 404, listing);
 
   // ---------- Marketing ----------
   const banner = await call('POST', '/admin/banners', {
@@ -457,15 +452,33 @@ async function main() {
   );
   const form = new FormData();
   form.append('file', new Blob([png], { type: 'image/png' }), 'pixel.png');
-  const up = await fetch(`${API}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${customer}` }, body: form });
+  const up = await fetch(`${API}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${admin}` }, body: form });
   const upData = await up.json();
-  check('upload image', up.status === 201 && upData.url.includes('/uploads/'), upData);
+  check('admin upload image', up.status === 201 && upData.url.includes('/uploads/'), upData);
   const served = await fetch(upData.url);
   check('uploaded image served', served.status === 200, served.status);
   const formTxt = new FormData();
   formTxt.append('file', new Blob(['hello'], { type: 'text/plain' }), 'notes.txt');
-  const upBad = await fetch(`${API}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${customer}` }, body: formTxt });
+  const upBad = await fetch(`${API}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${admin}` }, body: formTxt });
   check('non-image upload refused', upBad.status === 400, upBad.status);
+  const formCust = new FormData();
+  formCust.append('file', new Blob([png], { type: 'image/png' }), 'pixel.png');
+  const upCust = await fetch(`${API}/uploads`, { method: 'POST', headers: { Authorization: `Bearer ${customer}` }, body: formCust });
+  check('customer cannot upload -> 403', upCust.status === 403, upCust.status);
+
+  // ---------- Sign in by phone (SMS one-time code, simulated in dev) ----------
+  const otpPhone = '0733444555';
+  const otpReq = await call('POST', '/auth/phone/request', { body: { phone: otpPhone } });
+  check('phone code sent (dev returns code)', otpReq.status === 200 && /^\d{6}$/.test(otpReq.data.devCode ?? ''), otpReq);
+  const otpWrong = await call('POST', '/auth/phone/verify', { body: { phone: otpPhone, code: '000000' } });
+  check('wrong code refused', otpWrong.status === 400, otpWrong);
+  const otpOk = await call('POST', '/auth/phone/verify', { body: { phone: otpPhone, code: otpReq.data.devCode, name: 'Phone User' } });
+  check('phone sign-in returns token + user', otpOk.status === 200 && otpOk.data.token && otpOk.data.user.id, otpOk);
+  const phoneMe = await call('GET', '/auth/me', { token: otpOk.data.token });
+  check('phone account usable', phoneMe.status === 200 && phoneMe.data.role === 'CUSTOMER', phoneMe);
+  const otpBadPhone = await call('POST', '/auth/phone/request', { body: { phone: '123' }, lang: 'fr' });
+  check('invalid phone refused', otpBadPhone.status === 400, otpBadPhone);
+  await prisma.user.deleteMany({ where: { email: `phone+254733444555@babymama.local` } });
 }
 
 main()

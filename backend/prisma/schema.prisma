@@ -454,6 +454,18 @@ model SupportTicket {
 
 /// Settings the admin changes at runtime without redeploying (payment gateways...).
 /// `value` is JSON; secret fields inside it are encrypted (src/lib/secrets.ts).
+/// One-time codes for sign-in by phone (SMS). Short-lived; the newest per phone wins.
+model PhoneOtp {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+}
+
 model Setting {
   key       String   @id
   value     String

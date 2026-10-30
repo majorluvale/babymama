@@ -19,7 +19,7 @@ babymama/
 
 | Domaine | Ce qui est fait |
 |---|---|
-| Comptes | Inscription e-mail / mot de passe, **connexion Google** (web, Android, iOS), profil, adresses enregistrées, rôles `CUSTOMER`, `DRIVER`, `SUPPORT`, `ADMIN` |
+| Comptes | Inscription e-mail / mot de passe, **connexion Google** (web, Android, iOS), **connexion par numéro de téléphone + code SMS** (passerelle Africa's Talking réglable depuis l'admin, sans redéploiement ; simulée en développement), profil, adresses enregistrées, rôles `CUSTOMER`, `DRIVER`, `SUPPORT`, `ADMIN` |
 | Boutique | Babymama est le seul vendeur. Site web avec en-tête (recherche à suggestions instantanées, rayons **Femmes \| Hommes \| Enfants** avec menu au survol), contenu centré sur 1200 px, pied de page ; mise en page téléphone sur mobile. **Carrousel** à flèches (pubs, promos, catégories, lots + nouveautés), catalogue avec filtres (sous-catégorie, tailles, couleurs, état, prix, tri), fiche produit (galerie à flèches, fil d'Ariane), 2ᵉ photo au survol des cartes, favoris |
 | Catégories et tailles | Chaque catégorie a une échelle de tailles, héritée de son rayon si elle n'en définit pas : **vêtements** XS à 3XL, **enfants** par âge (0-3 mois à 14 ans), **chaussures** pointure EU 16 à 46, **accessoires** sans taille. L'admin choisit la taille dans cette liste et le serveur refuse une taille hors échelle. Couleur choisie dans une liste de 14 couleurs traduites |
 | Ventes groupées | **Lots** (plusieurs articles vendus ensemble à prix réduit) **et remise multi-achat** par paliers (ex. 2 articles -5 %, 3 articles -10 %, 5 articles -15 %), configurables dans l'admin |
@@ -67,7 +67,7 @@ docker compose exec api npx tsx prisma/seed.ts
 Tests :
 
 - `npm test` : tests unitaires du calcul des remises ;
-- `npm run e2e` : test de bout en bout (98 vérifications) contre l'API lancée et la base seedée. Il couvre inscription, catalogue, devis, commande, paiement simulé et callback M-Pesa, expiration des commandes non payées, achat simultané de la dernière pièce, lots, workflow admin, app livreur (code de livraison, espèces), avis, support, stock, annonces clients, carrousel, zones et upload d'images. Il crée des données de test et remet en stock les articles de démo (`BM-DEMO-*`) : à lancer sur une base de développement. Les routes de connexion bloquent une adresse IP après 20 échecs en 15 min (les connexions réussies ne comptent pas).
+- `npm run e2e` : test de bout en bout (106 vérifications) contre l'API lancée et la base seedée. Il couvre inscription, **connexion par téléphone (code SMS simulé)**, catalogue, devis, commande, paiement simulé et callback M-Pesa, expiration des commandes non payées, achat simultané de la dernière pièce, lots, workflow admin, app livreur (code de livraison, espèces), avis, support, stock, carrousel, zones et upload d'images (réservé à l'admin). Il crée des données de test et remet en stock les articles de démo (`BM-DEMO-*`) : à lancer sur une base de développement. Les routes de connexion bloquent une adresse IP après 20 échecs en 15 min (les connexions réussies ne comptent pas).
 
 Après une modification de `prisma/schema.prisma` : `npx prisma migrate dev --name <description>`.
 

@@ -34,6 +34,15 @@ export const config = {
     mock: bool(env.PAYMENTS_MOCK, !isProduction),
     cashOnDelivery: bool(env.CASH_ON_DELIVERY, true),
   },
+  sms: {
+    /** Simulated sending for development: the code is logged, not sent. */
+    mock: bool(env.SMS_MOCK, !isProduction),
+    senderId: env.SMS_SENDER_ID ?? '',
+    africasTalking: {
+      username: env.AT_USERNAME ?? '',
+      apiKey: env.AT_API_KEY ?? '',
+    },
+  },
   mpesa: {
     env: env.MPESA_ENV ?? 'sandbox',
     consumerKey: env.MPESA_CONSUMER_KEY ?? '',

@@ -256,50 +256,5 @@ catalogRouter.delete(
   }),
 );
 
-// ---- "Sell now": customers submit their own items, reviewed by an admin before going live ----
-
-const listingSchema = z.object({
-  title: z.string().trim().min(3).max(140),
-  description: z.string().trim().max(3000).default(''),
-  brand: z.string().trim().max(80).nullish(),
-  size: z.string().trim().max(40).nullish(),
-  color: z.string().trim().max(40).nullish(),
-  condition: z.nativeEnum(ProductCondition),
-  price: z.number().int().min(50).max(1_000_000),
-  categoryId: z.string().nullish(),
-  images: z.array(z.string().url()).min(1).max(8),
-});
-
-catalogRouter.post(
-  '/me/listings',
-  requireAuth,
-  ah(async (req, res) => {
-    const { images, ...data } = listingSchema.parse(req.body);
-    const product = await prisma.product.create({
-      data: {
-        ...data,
-        sku: `SL-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1296).toString(36).toUpperCase()}`,
-        stock: 1,
-        status: 'PENDING_REVIEW',
-        source: 'SELLER',
-        sellerId: req.user!.id,
-        images: { create: images.map((url, position) => ({ url, position })) },
-      },
-      include: productInclude,
-    });
-    res.status(201).json(productDto(product));
-  }),
-);
-
-catalogRouter.get(
-  '/me/listings',
-  requireAuth,
-  ah(async (req, res) => {
-    const items = await prisma.product.findMany({
-      where: { sellerId: req.user!.id },
-      include: productInclude,
-      orderBy: { createdAt: 'desc' },
-    });
-    res.json(items.map((p) => productDto(p)));
-  }),
-);
+// Babymama is the only seller: customer self-listing is intentionally not exposed.
+// Products are created by staff through the admin API (products.admin.ts).

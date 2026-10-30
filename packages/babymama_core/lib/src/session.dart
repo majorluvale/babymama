@@ -52,6 +52,34 @@ class Session extends ChangeNotifier {
         if (locale != null) 'locale': locale,
       }));
 
+  /// Whether sign-in by phone/SMS is offered (a gateway is configured on the server).
+  Future<bool> phoneSignInAvailable() async {
+    try {
+      final res = await api.get('/auth/phone/available') as Json;
+      return res['available'] == true;
+    } on ApiException {
+      return false;
+    }
+  }
+
+  /// Sends a one-time code by SMS. Returns the code only in the server's simulation mode (development).
+  Future<String?> requestPhoneCode(String phone, {String? locale}) async {
+    final res = await api.post('/auth/phone/request', {
+      'phone': phone.trim(),
+      if (locale != null) 'locale': locale,
+    }) as Json;
+    return res['devCode'] as String?;
+  }
+
+  /// Verifies the code and signs in, creating the account on first use.
+  Future<void> verifyPhoneCode(String phone, String code, {String? name, String? locale}) =>
+      _authenticate(api.post('/auth/phone/verify', {
+        'phone': phone.trim(),
+        'code': code.trim(),
+        if (name != null && name.trim().isNotEmpty) 'name': name.trim(),
+        if (locale != null) 'locale': locale,
+      }));
+
   Future<void> refreshUser() async {
     user = BmUser.fromJson(await api.get('/auth/me') as Json);
     notifyListeners();

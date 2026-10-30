@@ -4,6 +4,11 @@ import express, { Router } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from './config';
+
+// Keep the secret callback token out of the access logs (it sits in the URL path).
+morgan.token('url', (req: express.Request) =>
+  (req.originalUrl || req.url).replace(/(\/callbacks\/(?:mpesa|airtel)\/)[^/?]+/, '$1***'),
+);
 import { errorHandler, notFoundHandler } from './lib/errors';
 import { adminRouter } from './modules/admin';
 import { authRouter } from './modules/auth/auth.routes';
@@ -31,7 +36,9 @@ export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.use(cors({ origin: config.corsOrigins.length ? config.corsOrigins : true }));
+  // Reflect any origin only in development. In production, the shop/admin origins must be
+  // listed in CORS_ORIGINS; an empty list then blocks cross-site requests instead of allowing all.
+  app.use(cors({ origin: config.corsOrigins.length ? config.corsOrigins : !config.isProduction }));
   app.use(
     express.json({
       limit: '2mb',
